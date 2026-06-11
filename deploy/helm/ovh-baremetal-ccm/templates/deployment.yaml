@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ovh-baremetal-ccm.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ovh-baremetal-ccm.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ovh-baremetal-ccm.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # Restart pod when secret changes
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "ovh-baremetal-ccm.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ovh-baremetal-ccm.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      containers:
+        - name: ccm
+          image: "{{ .Values.image.repository }}:{{ include "ovh-baremetal-ccm.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --cloud-provider=ovh-baremetal
+            - --allow-untagged-cloud=true
+            - --v={{ .Values.logVerbosity }}
+            - --leader-elect-lease-duration={{ .Values.leaderElection.leaseDuration }}
+            - --leader-elect-renew-deadline={{ .Values.leaderElection.renewDeadline }}
+            - --leader-elect-resource-name={{ .Values.leaderElection.resourceName }}
+            - --controllers=cloud-node,cloud-node-lifecycle
+            {{- range .Values.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          env:
+            - name: OVH_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ovh-baremetal-ccm.secretName" . }}
+                  key: endpoint
+            - name: OVH_APPLICATION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ovh-baremetal-ccm.secretName" . }}
+                  key: application_key
+            - name: OVH_APPLICATION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ovh-baremetal-ccm.secretName" . }}
+                  key: application_secret
+            - name: OVH_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ovh-baremetal-ccm.secretName" . }}
+                  key: consumer_key
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,108 @@
+# -- Number of CCM replicas (1 is sufficient with leader election)
+replicaCount: 1
+
+image:
+  # -- CCM container image repository
+  repository: ghcr.io/lighthouse-engineering/ovh-baremetal-ccm
+  # -- Image tag (defaults to Chart appVersion)
+  tag: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+# - name: my-registry-secret
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -- OVH API credentials.
+# Either set these values or use existingSecret.
+ovh:
+  # -- OVH API endpoint
+  endpoint: ovh-eu
+  # -- OVH API application key
+  applicationKey: ""
+  # -- OVH API application secret
+  applicationSecret: ""
+  # -- OVH API consumer key
+  consumerKey: ""
+
+# -- Use an existing Secret for OVH credentials instead of creating one.
+# Secret must contain keys: endpoint, application_key, application_secret, consumer_key
+existingSecret: ""
+
+# -- Log verbosity level (0-10)
+logVerbosity: 2
+
+# -- Extra arguments to pass to the CCM binary
+extraArgs: []
+
+# -- Extra environment variables for the CCM container
+extraEnv: []
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: true
+  # -- ServiceAccount name (defaults to release fullname)
+  name: ""
+  # -- Annotations for the ServiceAccount
+  annotations: {}
+
+# -- Leader election configuration.
+# Resource name must not conflict with other CCMs (e.g., OpenStack CCM).
+leaderElection:
+  # -- Leader election lease duration
+  leaseDuration: 30s
+  # -- Leader election renew deadline
+  renewDeadline: 20s
+  # -- Leader election resource name (unique per CCM instance)
+  resourceName: ovh-baremetal-ccm
+
+# -- Node selector for CCM pod scheduling.
+# Defaults to control-plane nodes.
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+
+# -- Tolerations for CCM pod scheduling.
+# Must include the uninitialized taint so the CCM can process new nodes.
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    effect: NoSchedule
+  - key: node.cloudprovider.kubernetes.io/uninitialized
+    value: "true"
+    effect: NoSchedule
+
+# -- Affinity rules for CCM pod scheduling
+affinity: {}
+
+# -- Resource requests and limits
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+# -- Pod-level security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+# -- Container-level security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Annotations added to the CCM pod
+podAnnotations: {}
+
+# -- Labels added to the CCM pod
+podLabels: {}
+
+# -- Priority class name for the CCM pod
+priorityClassName: ""

@@ -33,26 +33,25 @@ machine:
     node.cloudprovider.kubernetes.io/uninitialized: "true:NoSchedule"
 ```
 
-## Deployment
+## Installation
 
-### Prerequisites
-
-- OVH API credentials (application key, secret, consumer key)
-- Kubernetes cluster with bare metal nodes
-
-### Environment Variables
-
-| Variable | Description | Default |
-|---|---|---|
-| `OVH_ENDPOINT` | OVH API endpoint | `ovh-eu` |
-| `OVH_APPLICATION_KEY` | OVH API application key | Required |
-| `OVH_APPLICATION_SECRET` | OVH API application secret | Required |
-| `OVH_CONSUMER_KEY` | OVH API consumer key | Required |
-
-### Deploy with Manifests
+### Helm (recommended)
 
 ```bash
-# Create the secret with OVH credentials
+# From OCI registry
+helm install ovh-baremetal-ccm \
+  oci://ghcr.io/lighthouse-engineering/charts/ovh-baremetal-ccm \
+  --version 0.1.0 \
+  --namespace kube-system \
+  --set ovh.applicationKey=YOUR_KEY \
+  --set ovh.applicationSecret=YOUR_SECRET \
+  --set ovh.consumerKey=YOUR_CONSUMER_KEY
+```
+
+### Helm with existing secret
+
+```bash
+# Create the secret first
 kubectl create secret generic ovh-baremetal-ccm \
   --namespace kube-system \
   --from-literal=endpoint=ovh-eu \
@@ -60,9 +59,33 @@ kubectl create secret generic ovh-baremetal-ccm \
   --from-literal=application_secret=YOUR_SECRET \
   --from-literal=consumer_key=YOUR_CONSUMER_KEY
 
-# Deploy the CCM
-kubectl apply -f deploy/manifests/ccm.yaml
+# Install with existingSecret
+helm install ovh-baremetal-ccm \
+  oci://ghcr.io/lighthouse-engineering/charts/ovh-baremetal-ccm \
+  --version 0.1.0 \
+  --namespace kube-system \
+  --set existingSecret=ovh-baremetal-ccm
 ```
+
+### Helm Values
+
+| Key | Default | Description |
+|---|---|---|
+| `ovh.endpoint` | `ovh-eu` | OVH API endpoint |
+| `ovh.applicationKey` | `""` | OVH API application key |
+| `ovh.applicationSecret` | `""` | OVH API application secret |
+| `ovh.consumerKey` | `""` | OVH API consumer key |
+| `existingSecret` | `""` | Use an existing K8s Secret for OVH credentials |
+| `image.repository` | `ghcr.io/lighthouse-engineering/ovh-baremetal-ccm` | CCM image |
+| `image.tag` | Chart appVersion | Image tag |
+| `replicaCount` | `1` | Number of replicas |
+| `logVerbosity` | `2` | Log verbosity (0-10) |
+| `nodeSelector` | `{node-role.kubernetes.io/control-plane: ""}` | Pod node selector |
+| `resources.requests.cpu` | `50m` | CPU request |
+| `resources.requests.memory` | `64Mi` | Memory request |
+| `resources.limits.memory` | `128Mi` | Memory limit |
+
+See [values.yaml](deploy/helm/ovh-baremetal-ccm/values.yaml) for all options.
 
 ## Coexistence with OpenStack CCM
 
@@ -87,6 +110,9 @@ go build -o ovh-baremetal-ccm ./cmd/ovh-baremetal-ccm/
 
 # Build Docker image
 docker build -t ghcr.io/lighthouse-engineering/ovh-baremetal-ccm:latest .
+
+# Lint Helm chart
+helm lint deploy/helm/ovh-baremetal-ccm/
 ```
 
 ## License

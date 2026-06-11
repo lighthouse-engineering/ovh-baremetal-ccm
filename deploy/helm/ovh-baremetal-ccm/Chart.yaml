@@ -1,0 +1,19 @@
+apiVersion: v2
+name: ovh-baremetal-ccm
+description: Kubernetes Cloud Controller Manager for OVH dedicated (bare metal) servers
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - ovh
+  - bare-metal
+  - cloud-controller-manager
+  - ccm
+  - kubernetes
+  - external-ip
+home: https://github.com/lighthouse-engineering/ovh-baremetal-ccm
+sources:
+  - https://github.com/lighthouse-engineering/ovh-baremetal-ccm
+maintainers:
+  - name: Lighthouse Engineering
+    url: https://github.com/lighthouse-engineering

@@ -66,3 +66,12 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Package and push Helm chart
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          helm package deploy/helm/ovh-baremetal-ccm \
+            --version ${VERSION} \
+            --app-version ${VERSION}
+          helm push ovh-baremetal-ccm-${VERSION}.tgz \
+            oci://ghcr.io/lighthouse-engineering/charts
