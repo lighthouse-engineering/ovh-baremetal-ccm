@@ -25,7 +25,7 @@ const (
 
 	// ServiceNameAnnotation is the node annotation that maps a K8s node
 	// to an OVH dedicated server service name.
-	ServiceNameAnnotation = "atlas.io/ovh-service-name"
+	ServiceNameAnnotation = "node.ovh.com/service-name"
 )
 
 // cloud implements cloudprovider.Interface for OVH bare metal servers.

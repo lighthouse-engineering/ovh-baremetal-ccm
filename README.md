@@ -11,7 +11,7 @@ This CCM is designed to run **alongside** the OpenStack CCM in mixed clusters (O
 ## How It Works
 
 1. Bare metal nodes start with `--cloud-provider=external` and the `node.cloudprovider.kubernetes.io/uninitialized` taint
-2. The CCM watches for nodes with the `atlas.io/ovh-service-name` annotation
+2. The CCM watches for nodes with the `node.ovh.com/service-name` annotation
 3. It queries the OVH API (`GET /dedicated/server/{serviceName}`) for the server's public IP, region, and availability zone
 4. It sets:
    - `ExternalIP` → from `server.ip`
@@ -25,7 +25,7 @@ This CCM is designed to run **alongside** the OpenStack CCM in mixed clusters (O
 ```yaml
 machine:
   nodeAnnotations:
-    atlas.io/ovh-service-name: "nsXXXXXX.ip-X-X-X.eu"
+    node.ovh.com/service-name: "nsXXXXXX.ip-X-X-X.eu"
   kubelet:
     extraArgs:
       cloud-provider: external
@@ -72,12 +72,12 @@ This CCM runs alongside the OpenStack CCM without conflicts:
 |---|---|---|
 | Provider name | `openstack` | `ovh-baremetal` |
 | Leader election lease | `cloud-controller-manager` | `ovh-baremetal-ccm` |
-| Node identification | Nova API lookup by name | `atlas.io/ovh-service-name` annotation |
+| Node identification | Nova API lookup by name | `node.ovh.com/service-name` annotation |
 | Manages | VPS instances | Dedicated servers |
 | ExternalIP source | OpenStack metadata | OVH dedicated server API |
 | ProviderID format | `openstack:///{uuid}` | `ovh-baremetal://{serviceName}` |
 
-Nodes without the `atlas.io/ovh-service-name` annotation are ignored by this CCM.
+Nodes without the `node.ovh.com/service-name` annotation are ignored by this CCM.
 
 ## Building
 
