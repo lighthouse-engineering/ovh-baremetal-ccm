@@ -1,0 +1,105 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ovh-baremetal-ccm
+  namespace: kube-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: ovh-baremetal-ccm
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["nodes/status"]
+    verbs: ["patch", "update"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "create", "update"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ovh-baremetal-ccm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ovh-baremetal-ccm
+subjects:
+  - kind: ServiceAccount
+    name: ovh-baremetal-ccm
+    namespace: kube-system
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ovh-baremetal-ccm
+  namespace: kube-system
+  labels:
+    app: ovh-baremetal-ccm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ovh-baremetal-ccm
+  template:
+    metadata:
+      labels:
+        app: ovh-baremetal-ccm
+    spec:
+      serviceAccountName: ovh-baremetal-ccm
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+        - key: node.cloudprovider.kubernetes.io/uninitialized
+          value: "true"
+          effect: NoSchedule
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      containers:
+        - name: ccm
+          image: ghcr.io/lighthouse-engineering/ovh-baremetal-ccm:latest
+          args:
+            - --cloud-provider=ovh-baremetal
+            - --allow-untagged-cloud=true
+            - --leader-elect-lease-duration=30s
+            - --leader-elect-renew-deadline=20s
+            # Use a unique leader election resource name to avoid conflicts
+            # with the OpenStack CCM.
+            - --leader-elect-resource-name=ovh-baremetal-ccm
+          env:
+            - name: OVH_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: ovh-baremetal-ccm
+                  key: endpoint
+            - name: OVH_APPLICATION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ovh-baremetal-ccm
+                  key: application_key
+            - name: OVH_APPLICATION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ovh-baremetal-ccm
+                  key: application_secret
+            - name: OVH_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ovh-baremetal-ccm
+                  key: consumer_key
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
