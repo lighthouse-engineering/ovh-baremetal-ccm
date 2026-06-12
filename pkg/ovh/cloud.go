@@ -23,9 +23,12 @@ const (
 	// ProviderName is the name of this cloud provider, used in --cloud-provider flag.
 	ProviderName = "ovh-baremetal"
 
-	// ServiceNameAnnotation is the node annotation that maps a K8s node
-	// to an OVH dedicated server service name.
-	ServiceNameAnnotation = "node.ovh.com/service-name"
+	// ServiceNameLabel is the node label that maps a K8s node to an OVH
+	// dedicated server service name. The CCM only watches nodes that carry
+	// this label — all other nodes are invisible to the controller.
+	// The label must be set manually (e.g. via Talos machine config or
+	// kubectl label) before the CCM will initialize the node.
+	ServiceNameLabel = "node.ovh.com/service-name"
 )
 
 // cloud implements cloudprovider.Interface for OVH bare metal servers.

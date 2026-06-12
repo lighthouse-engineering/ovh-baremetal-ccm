@@ -63,10 +63,10 @@ func newInstances(client *ovh.Client) *instances {
 	}
 }
 
-// getServiceName extracts the OVH service name from a node's annotation or ProviderID.
+// getServiceName extracts the OVH service name from a node's label or ProviderID.
 func getServiceName(node *v1.Node) (string, error) {
-	// Try annotation first.
-	if sn, ok := node.Annotations[ServiceNameAnnotation]; ok && sn != "" {
+	// Try label first.
+	if sn, ok := node.Labels[ServiceNameLabel]; ok && sn != "" {
 		return sn, nil
 	}
 
@@ -75,8 +75,8 @@ func getServiceName(node *v1.Node) (string, error) {
 		return strings.TrimPrefix(node.Spec.ProviderID, providerIDPrefix), nil
 	}
 
-	return "", fmt.Errorf("node %s has no %s annotation or %s ProviderID",
-		node.Name, ServiceNameAnnotation, providerIDPrefix)
+	return "", fmt.Errorf("node %s has no %s label or %s ProviderID",
+		node.Name, ServiceNameLabel, providerIDPrefix)
 }
 
 // getServer fetches dedicated server details from the OVH API with caching.
@@ -154,7 +154,12 @@ func (i *instances) InstanceShutdown(ctx context.Context, node *v1.Node) (bool, 
 func (i *instances) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloudprovider.InstanceMetadata, error) {
 	serviceName, err := getServiceName(node)
 	if err != nil {
-		return nil, cloudprovider.InstanceNotFound
+		// Not our node. Return (nil, nil) so the upstream syncNode() silently
+		// skips it ("Skip sync node %s because cloud provided nil metadata").
+		// This should rarely be reached because the informer is filtered by
+		// the ServiceNameLabel, but serves as a safety net.
+		klog.V(4).Infof("Node %s is not an OVH bare metal node, skipping: %v", node.Name, err)
+		return nil, nil
 	}
 
 	server, err := i.getServer(serviceName)

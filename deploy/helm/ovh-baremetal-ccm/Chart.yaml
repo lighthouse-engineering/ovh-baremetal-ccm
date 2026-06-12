@@ -2,8 +2,8 @@ apiVersion: v2
 name: ovh-baremetal-ccm
 description: Kubernetes Cloud Controller Manager for OVH dedicated (bare metal) servers
 type: application
-version: 0.2.1
-appVersion: "0.2.0"
+version: 0.3.0
+appVersion: "0.3.0"
 keywords:
   - ovh
   - bare-metal

@@ -18,14 +18,17 @@ limitations under the License.
 // OVH dedicated (bare metal) servers. It queries the OVH API to set
 // ExternalIP, ProviderID, and topology labels on bare metal nodes.
 //
-// Nodes are identified by the atlas.io/ovh-service-name annotation.
+// Only nodes with the node.ovh.com/service-name label are watched.
 package main
 
 import (
+	"context"
 	"io"
 	"os"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/informers"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"
 	"k8s.io/cloud-provider/app/config"
@@ -35,7 +38,12 @@ import (
 	cliflag "k8s.io/component-base/cli/flag"
 	_ "k8s.io/component-base/metrics/prometheus/clientgo"
 	_ "k8s.io/component-base/metrics/prometheus/version"
+	genericcontrollermanager "k8s.io/controller-manager/app"
+	"k8s.io/controller-manager/controller"
 	"k8s.io/klog/v2"
+
+	cloudnodecontroller "k8s.io/cloud-provider/controllers/node"
+	cloudnodelifecyclecontroller "k8s.io/cloud-provider/controllers/nodelifecycle"
 
 	ovhprovider "github.com/lighthouse-engineering/ovh-baremetal-ccm/pkg/ovh"
 )
@@ -66,23 +74,89 @@ func main() {
 }
 
 func controllerInitializers() map[string]app.ControllerInitFuncConstructor {
-	controllerInitializers := app.DefaultInitFuncConstructors
-
-	// Use unique client names to avoid conflicts with the OpenStack CCM.
-	if constructor, ok := controllerInitializers[names.CloudNodeController]; ok {
-		constructor.InitContext.ClientName = "ovh-baremetal-cloud-node-controller"
-		controllerInitializers[names.CloudNodeController] = constructor
+	// Start from scratch — only register the two controllers we need,
+	// with custom constructors that use a label-filtered node informer.
+	return map[string]app.ControllerInitFuncConstructor{
+		names.CloudNodeController: {
+			InitContext: app.ControllerInitContext{
+				ClientName: "ovh-baremetal-cloud-node-controller",
+			},
+			Constructor: startFilteredCloudNodeController,
+		},
+		names.CloudNodeLifecycleController: {
+			InitContext: app.ControllerInitContext{
+				ClientName: "ovh-baremetal-cloud-node-lifecycle-controller",
+			},
+			Constructor: startFilteredCloudNodeLifecycleController,
+		},
 	}
-	if constructor, ok := controllerInitializers[names.CloudNodeLifecycleController]; ok {
-		constructor.InitContext.ClientName = "ovh-baremetal-cloud-node-lifecycle-controller"
-		controllerInitializers[names.CloudNodeLifecycleController] = constructor
+}
+
+// nodeInformerFactory creates a SharedInformerFactory that only watches nodes
+// with the node.ovh.com/service-name label. This means the controller never
+// sees VPS nodes (managed by the OpenStack CCM), eliminating spurious
+// "instance not found" errors.
+func nodeInformerFactory(completedConfig *config.CompletedConfig, clientName string) informers.SharedInformerFactory {
+	client := completedConfig.ClientBuilder.ClientOrDie(clientName + "-informers")
+	return informers.NewSharedInformerFactoryWithOptions(client, 0,
+		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			opts.LabelSelector = ovhprovider.ServiceNameLabel
+		}),
+	)
+}
+
+// startFilteredCloudNodeController constructs the cloud-node controller with a
+// node informer filtered by the service-name label.
+func startFilteredCloudNodeController(initContext app.ControllerInitContext, completedConfig *config.CompletedConfig, cloud cloudprovider.Interface) app.InitFunc {
+	return func(ctx context.Context, controllerContext genericcontrollermanager.ControllerContext) (controller.Interface, bool, error) {
+		filteredFactory := nodeInformerFactory(completedConfig, initContext.ClientName)
+
+		nodeController, err := cloudnodecontroller.NewCloudNodeController(
+			filteredFactory.Core().V1().Nodes(),
+			completedConfig.ClientBuilder.ClientOrDie(initContext.ClientName),
+			cloud,
+			completedConfig.ComponentConfig.NodeStatusUpdateFrequency.Duration,
+			completedConfig.ComponentConfig.NodeController.ConcurrentNodeSyncs,
+			completedConfig.ComponentConfig.NodeController.ConcurrentNodeStatusUpdates,
+		)
+		if err != nil {
+			klog.Warningf("failed to start cloud node controller: %s", err)
+			return nil, false, nil
+		}
+
+		filteredFactory.Start(ctx.Done())
+		filteredFactory.WaitForCacheSync(ctx.Done())
+
+		go nodeController.Run(ctx.Done(), controllerContext.ControllerManagerMetrics)
+
+		return nil, true, nil
 	}
+}
 
-	// Remove controllers we don't need (no LoadBalancer or Route support).
-	delete(controllerInitializers, names.ServiceLBController)
-	delete(controllerInitializers, names.NodeRouteController)
+// startFilteredCloudNodeLifecycleController constructs the cloud-node-lifecycle
+// controller with a node informer filtered by the service-name label.
+func startFilteredCloudNodeLifecycleController(initContext app.ControllerInitContext, completedConfig *config.CompletedConfig, cloud cloudprovider.Interface) app.InitFunc {
+	return func(ctx context.Context, controllerContext genericcontrollermanager.ControllerContext) (controller.Interface, bool, error) {
+		filteredFactory := nodeInformerFactory(completedConfig, initContext.ClientName)
 
-	return controllerInitializers
+		lifecycleController, err := cloudnodelifecyclecontroller.NewCloudNodeLifecycleController(
+			filteredFactory.Core().V1().Nodes(),
+			completedConfig.ClientBuilder.ClientOrDie(initContext.ClientName),
+			cloud,
+			completedConfig.ComponentConfig.KubeCloudShared.NodeMonitorPeriod.Duration,
+		)
+		if err != nil {
+			klog.Warningf("failed to start cloud node lifecycle controller: %s", err)
+			return nil, false, nil
+		}
+
+		filteredFactory.Start(ctx.Done())
+		filteredFactory.WaitForCacheSync(ctx.Done())
+
+		go lifecycleController.Run(ctx, controllerContext.ControllerManagerMetrics)
+
+		return nil, true, nil
+	}
 }
 
 func cloudInitializer(config *config.CompletedConfig) cloudprovider.Interface {
