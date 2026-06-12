@@ -12,10 +12,25 @@ rules:
   - apiGroups: [""]
     resources: ["nodes/status"]
     verbs: ["patch", "update"]
+  # Service management (required by CCM framework)
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["list", "watch"]
+  - apiGroups: [""]
+    resources: ["services/status"]
+    verbs: ["patch"]
   # Event recording
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["create", "patch"]
+  # ConfigMaps — extension-apiserver-authentication
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  # ServiceAccount token creation (CCM framework)
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
   # Leader election
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
