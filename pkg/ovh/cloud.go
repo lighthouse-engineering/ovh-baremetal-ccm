@@ -11,10 +11,13 @@ You may obtain a copy of the License at
 package ovh
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/ovh/go-ovh/ovh"
+	v1 "k8s.io/api/core/v1"
+	clientset "k8s.io/client-go/kubernetes"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 )
@@ -113,4 +116,11 @@ func (c *cloud) ProviderName() string {
 // HasClusterID returns true. We don't require a cluster ID.
 func (c *cloud) HasClusterID() bool {
 	return true
+}
+
+// NodeReconciler is implemented by cloud providers that support periodic
+// reconciliation of node metadata (ProviderID, topology labels) beyond
+// what the upstream cloud-node controller does (addresses only).
+type NodeReconciler interface {
+	ReconcileNode(ctx context.Context, kubeClient clientset.Interface, node *v1.Node) (bool, error)
 }
