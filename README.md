@@ -10,7 +10,7 @@ This CCM is designed to run **alongside** the OpenStack CCM in mixed clusters (O
 
 ## How It Works
 
-1. Bare metal nodes must have the **`node.ovh.com/service-name`** label set to their OVH dedicated server service name (e.g. `nsXXXXXX.ip-X-X-X.eu`). This label must be configured **before** the node joins the cluster — typically via the Talos machine config or equivalent provisioning tool. The CCM does not set this label; it only reads it.
+1. Bare metal nodes must have the **`node.ovh.com/service-name`** label set to their OVH dedicated server service name. This label must be configured **before** the node joins the cluster — typically via the Talos machine config or equivalent provisioning tool. The CCM does not set this label; it only reads it.
 2. Nodes must boot with `--cloud-provider=external` and the `node.cloudprovider.kubernetes.io/uninitialized` taint.
 3. The CCM **only watches** nodes that carry the `node.ovh.com/service-name` label. Nodes without the label (e.g. VPS instances managed by the OpenStack CCM) are completely invisible to this controller — no API calls, no log entries, no errors.
 4. For each labeled node, it queries the OVH API (`GET /dedicated/server/{serviceName}`) and sets:
@@ -24,7 +24,7 @@ This CCM is designed to run **alongside** the OpenStack CCM in mixed clusters (O
 
 The `node.ovh.com/service-name` label is the **only** way the CCM identifies which nodes it should manage. You must set it yourself — the CCM never writes this label.
 
-The label value must be the OVH dedicated server service name, which you can find in the OVH dashboard URL or via the OVH API (`GET /dedicated/server`). Examples: `nsXXXXXX.ip-X-X-X.eu`, `ns1234567.ip-192-168-1.eu`.
+The label value must be the OVH dedicated server service name, which you can find in the OVH dashboard URL or via the OVH API (`GET /dedicated/server`). It typically looks like `nsXXXXXX.ip-X-X-X.eu`.
 
 ### Setting the label
 
@@ -33,7 +33,7 @@ The label value must be the OVH dedicated server service name, which you can fin
 ```yaml
 machine:
   nodeLabels:
-    node.ovh.com/service-name: "nsXXXXXX.ip-X-X-X.eu"
+    node.ovh.com/service-name: "<your-server-service-name>"
   kubelet:
     extraArgs:
       cloud-provider: external
@@ -44,7 +44,7 @@ machine:
 **kubectl** (for existing nodes — requires a kubelet restart with `--cloud-provider=external`):
 
 ```bash
-kubectl label node <node-name> node.ovh.com/service-name=nsXXXXXX.ip-X-X-X.eu
+kubectl label node <node-name> node.ovh.com/service-name=<your-server-service-name>
 ```
 
 ## Installation
