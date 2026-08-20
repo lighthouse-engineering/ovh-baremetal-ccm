@@ -1,0 +1,6 @@
+# GitHub automation may only be changed with organization-admin ownership.
+/.github/CODEOWNERS @adrianNEMO @simoneNEMO
+/.github/workflows/ @adrianNEMO @simoneNEMO
+/.github/actions/ @adrianNEMO @simoneNEMO
+**/action.yml @adrianNEMO @simoneNEMO
+**/action.yaml @adrianNEMO @simoneNEMO
